@@ -28,7 +28,7 @@ Thumbs.db
 # Logs
 logs
 *.log
-
+login.md
 # Runtime data
 pids
 *.pid
