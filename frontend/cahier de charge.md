@@ -20,3 +20,5 @@ Page d'authentification,  page d'ajout de client, page pour l'affichage des clie
 
 Messages de retour (succès/échec)
 
+
+code auth : "test@aeeni.edu/123456"

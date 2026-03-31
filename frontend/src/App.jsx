@@ -1,13 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import GestionClients from './components/GestionClients';
 import AjouterClient from './components/AjouterClient';
 import Statistiques from './components/Statistiques';
-import Connexion from './components/Connexion';
+import LoginGerant from './components/LoginGerant';
+import authService from './services/auth';
 
 const App = () => {
   const [currentPage, setCurrentPage] = useState('clients');
-  const [isAuthenticated, setIsAuthenticated] = useState(true);
-  const [user, setUser] = useState({ email: 'user@aeeni.edu', name: 'Utilisateur AEENI' });
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    // Vérifier si l'utilisateur est déjà authentifié au chargement
+    if (authService.isAuthenticated()) {
+      setIsAuthenticated(true);
+      setUser({ email: 'user@aeeni.edu', name: 'Utilisateur AEENI' });
+    }
+  }, []);
 
   const navigateTo = (page) => {
     setCurrentPage(page);
@@ -20,15 +29,16 @@ const App = () => {
   };
 
   const handleLogout = () => {
+    authService.logout();
     setIsAuthenticated(false);
     setUser(null);
-    setCurrentPage('clients');
+    setCurrentPage('login');
   };
 
   const renderPage = () => {
     // Si non authentifié, afficher la page de connexion
     if (!isAuthenticated) {
-      return <Connexion onLogin={handleLogin} />;
+      return <LoginGerant onNavigate={navigateTo} onLogin={handleLogin} />;
     }
 
     // Si authentifié, afficher les pages de l'application
