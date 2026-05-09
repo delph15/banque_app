@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Edit, Trash2, UserPlus, LogOut, BarChart3, Users, Plus, Home } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Search, Edit, Trash2, UserPlus, LogOut, BarChart3, Users, Plus, Home, X, Wallet, ArrowUpCircle, ArrowDownCircle, ChevronRight, ChevronLeft, CheckCircle2, AlertCircle, ShieldCheck, Lock, TrendingUp, TrendingDown, Sun, Moon } from 'lucide-react';
 import api from '../services/api';
 
 const GestionClients = ({ onNavigate, user, onLogout }) => {
@@ -8,6 +8,8 @@ const GestionClients = ({ onNavigate, user, onLogout }) => {
   const [error, setError] = useState(null);
   const [editingClient, setEditingClient] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [editStep, setEditStep] = useState(1);
+  const [editErrors, setEditErrors] = useState({});
   
   const [searchTerm, setSearchTerm] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
@@ -16,6 +18,7 @@ const GestionClients = ({ onNavigate, user, onLogout }) => {
   const [clientToDelete, setClientToDelete] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [clientsPerPage] = useState(10);
+  const [darkMode, setDarkMode] = useState(true);
 
   const getStatut = (solde) => {
     if (solde < 1000) return { text: 'Insuffisant', color: 'bg-red-100 text-red-800' };
@@ -38,8 +41,12 @@ const GestionClients = ({ onNavigate, user, onLogout }) => {
     setEditingClient({
       id: client.id || client.numCompte, // Utiliser numCompte comme fallback si id n'existe pas
       nom: client.nom,
-      solde: 0 // Réinitialiser le solde pour le champ "montant à ajouter"
+      soldeActuel: typeof client.solde === 'number' ? client.solde : parseFloat(client.solde) || 0,
+      solde: 0, // Réinitialiser le solde pour le champ "montant"
+      operation: 'depot'
     });
+    setEditStep(1);
+    setEditErrors({});
     setShowEditModal(true);
   };
 
@@ -52,7 +59,7 @@ const GestionClients = ({ onNavigate, user, onLogout }) => {
       // Mettre à jour le client avec les nouvelles données du backend
       setClients(prevClients => 
         prevClients.map(client => 
-          client.id === editingClient.id 
+          (client.id === editingClient.id || client.numCompte === editingClient.id)
             ? { ...client, nom: response.nom || editingClient.nom, solde: response.solde }
             : client
         )
@@ -86,7 +93,30 @@ const GestionClients = ({ onNavigate, user, onLogout }) => {
   const handleCancelEdit = () => {
     setShowEditModal(false);
     setEditingClient(null);
+    setEditStep(1);
+    setEditErrors({});
   };
+
+  const formatMGA = (value) => {
+    if (value == null) return '–';
+    const n = Number(value);
+    if (!Number.isFinite(n)) return '–';
+    return `${n.toLocaleString('fr-FR')} MGA`;
+  };
+
+  const validateEdit = useCallback(() => {
+    if (!editingClient) return false;
+    const montantNum = parseFloat(editingClient.solde) || 0;
+    const soldeActuel = parseFloat(editingClient.soldeActuel) || 0;
+    const opType = editingClient.operation || 'depot';
+    const errs = {};
+    if (!editingClient.solde || montantNum <= 0) errs.montant = 'Le montant doit être supérieur à 0.';
+    if (opType === 'retrait' && montantNum > soldeActuel) {
+      errs.montant = `Solde insuffisant. Maximum : ${formatMGA(soldeActuel)}`;
+    }
+    setEditErrors(errs);
+    return Object.keys(errs).length === 0;
+  }, [editingClient]);
 
   const handleDelete = async (id) => {
     setClientToDelete(id);
@@ -151,7 +181,7 @@ const GestionClients = ({ onNavigate, user, onLogout }) => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-cyan-50 via-blue-50 to-violet-100">
       {/* Barre de navigation */}
       <nav className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -411,50 +441,591 @@ const GestionClients = ({ onNavigate, user, onLogout }) => {
         
         {/* Edit Modal */}
         {showEditModal && editingClient && (
-          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-            <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-lg bg-white">
-              <div className="mt-3">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Modifier le client</h3>
-                <form onSubmit={handleUpdateClient} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Nom</label>
-                    <input
-                      type="text"
-                      value={editingClient.nom}
-                      onChange={(e) => setEditingClient({...editingClient, nom: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      required
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 overlay-enter"
+            style={{ background: 'rgba(2,6,23,0.75)', backdropFilter: 'blur(8px)' }}
+            onClick={(e) => e.target === e.currentTarget && handleCancelEdit()}
+          >
+            {(() => {
+              const montantNum = parseFloat(editingClient.solde) || 0;
+              const soldeActuel = parseFloat(editingClient.soldeActuel) || 0;
+              const opType = editingClient.operation || 'depot';
+              const impact = opType === 'depot' ? montantNum : -montantNum;
+              const newBalance = soldeActuel + impact;
+              const needsConfirmStep = montantNum > 500000;
+              const showRecapInline = montantNum > 0 && montantNum <= 500000 && Object.keys(editErrors).length === 0;
+              const isPositive = impact >= 0;
+
+              const handleKey = (e) => {
+                if (e.key === 'Escape') handleCancelEdit();
+              };
+
+              return (
+                <>
+                  <div
+                    className="modal-enter w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl relative flex flex-col max-h-[90vh]"
+                    style={{
+                      background: darkMode
+                        ? 'linear-gradient(160deg, #0f172a 0%, #0d1424 100%)'
+                        : 'linear-gradient(160deg, #f8fafc 0%, #e2e8f0 100%)',
+                      border: darkMode
+                        ? '1px solid rgba(255,255,255,0.08)'
+                        : '1px solid rgba(0,0,0,0.08)',
+                      boxShadow: darkMode
+                        ? '0 0 0 1px rgba(99,102,241,0.15), 0 32px 80px rgba(0,0,0,0.6), 0 0 80px rgba(99,102,241,0.08)'
+                        : '0 0 0 1px rgba(99,102,241,0.1), 0 8px 32px rgba(0,0,0,0.12), 0 0 40px rgba(99,102,241,0.04)',
+                      fontFamily: "'DM Sans', 'Segoe UI', sans-serif",
+                    }}
+                    tabIndex={-1}
+                    onKeyDown={handleKey}
+                  >
+                    <div
+                      className="h-1 w-full flex-shrink-0"
+                      style={{ background: 'linear-gradient(90deg, #3b82f6, #6366f1, #8b5cf6, #ec4899)' }}
                     />
+
+                    <div className="overflow-y-auto flex-1 scrollbar-thin">
+                      {/* Toggle mode */}
+                      <div className="flex justify-end p-4 pb-0">
+                        <button
+                          type="button"
+                          onClick={() => setDarkMode(!darkMode)}
+                          className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 ${
+                            darkMode
+                              ? 'bg-white/10 hover:bg-white/20 text-white'
+                              : 'bg-gray-800/10 hover:bg-gray-800/20 text-gray-800'
+                          }`}
+                          style={{
+                            border: darkMode ? '1px solid rgba(255,255,255,0.15)' : '1px solid rgba(0,0,0,0.12)',
+                          }}
+                        >
+                          {darkMode ? <Sun size={16} /> : <Moon size={16} />}
+                        </button>
+                      </div>
+                      {editStep === 1 ? (
+                        <div className="p-6 flex flex-col gap-5">
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-3">
+                              <div
+                                className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
+                                style={{ background: 'linear-gradient(135deg, #3b82f6, #6366f1)' }}
+                              >
+                                <Users size={18} className="text-white" />
+                              </div>
+                              <div>
+                                <h2 className={`font-bold text-lg leading-tight ${
+                                  darkMode ? 'text-white' : 'text-gray-800'
+                                }`}>Modifier le client</h2>
+                                <p className={`text-xs mt-0.5 ${
+                                  darkMode ? 'text-slate-400' : 'text-gray-600'
+                                }`}>Effectuer une opération sur le compte du client.</p>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleCancelEdit}
+                              className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-200 flex-shrink-0 ${
+                                darkMode 
+                                  ? 'text-slate-400 hover:text-white hover:bg-white/10' 
+                                  : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100/50'
+                              }`}
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
+
+                          <div className="h-px bg-white/5" />
+
+                          <div className="flex flex-col gap-1.5">
+                            <label className={`flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider ${
+                              darkMode ? 'text-slate-400' : 'text-gray-600'
+                            }`}>
+                              <span className={darkMode ? 'text-slate-500' : 'text-gray-500'}><Users size={14} /></span>
+                              Client
+                            </label>
+                            <input
+                              type="text"
+                              value={editingClient.nom}
+                              onChange={(e) => setEditingClient({ ...editingClient, nom: e.target.value })}
+                              className={`w-full px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all duration-200 ${
+                                darkMode 
+                                  ? 'text-white placeholder-slate-500' 
+                                  : 'text-gray-800 placeholder-gray-500'
+                              }`}
+                              style={{
+                                background: darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
+                                border: darkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.08)'
+                              }}
+                              required
+                            />
+                          </div>
+
+                          <div className="flex flex-col gap-1.5">
+                            <label className={`flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider ${
+                              darkMode ? 'text-slate-400' : 'text-gray-600'
+                            }`}>
+                              <span className={darkMode ? 'text-slate-500' : 'text-gray-500'}><Wallet size={14} /></span>
+                              Solde actuel
+                            </label>
+                            <div
+                              className="w-full px-4 py-3 rounded-xl flex items-center justify-between"
+                              style={{
+                                background: darkMode ? 'rgba(16,185,129,0.08)' : 'rgba(16,185,129,0.04)',
+                                border: darkMode ? '1px solid rgba(16,185,129,0.2)' : '1px solid rgba(16,185,129,0.15)'
+                              }}
+                            >
+                              <span className={`font-bold text-lg ${
+                                darkMode ? 'text-emerald-400' : 'text-emerald-600'
+                              }`}>{formatMGA(soldeActuel)}</span>
+                              <div className={`w-2 h-2 rounded-full animate-pulse ${
+                                darkMode ? 'bg-emerald-400' : 'bg-emerald-500'
+                              }`} />
+                            </div>
+                          </div>
+
+                          <div className="flex flex-col gap-1.5">
+                            <label className={`flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider ${
+                              darkMode ? 'text-slate-400' : 'text-gray-600'
+                            }`}>
+                              <span className={darkMode ? 'text-slate-500' : 'text-gray-500'}><TrendingUp size={14} /></span>
+                              Type d'opération
+                            </label>
+                            <div className="grid grid-cols-2 gap-3">
+                              <button
+                                type="button"
+                                onClick={() => { setEditingClient({ ...editingClient, operation: 'depot' }); setEditErrors({}); }}
+                                className="flex items-center gap-2.5 px-4 py-3 rounded-xl transition-all duration-200"
+                                style={
+                                  opType === 'depot'
+                                    ? {
+                                        background: 'rgba(59,130,246,0.1)',
+                                        border: '1.5px solid rgba(59,130,246,0.4)',
+                                        boxShadow: '0 0 0 3px rgba(59,130,246,0.4)',
+                                        color: '#93c5fd',
+                                      }
+                                    : darkMode
+                                    ? {
+                                        background: 'rgba(255,255,255,0.04)',
+                                        border: '1.5px solid rgba(255,255,255,0.08)',
+                                        color: '#94a3b8',
+                                      }
+                                    : {
+                                        background: 'rgba(0,0,0,0.02)',
+                                        border: '1.5px solid rgba(0,0,0,0.08)',
+                                        color: '#6b7280',
+                                      }
+                                }
+                              >
+                                <div style={{ color: opType === 'depot' ? '#93c5fd' : (darkMode ? '#64748b' : '#4b5563') }}>
+                                  <ArrowUpCircle size={16} />
+                                </div>
+                                <span className="text-sm font-medium" style={{ color: opType === 'depot' ? '#93c5fd' : (darkMode ? '#94a3b8' : '#6b7280') }}>Dépôt</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => { setEditingClient({ ...editingClient, operation: 'retrait' }); setEditErrors({}); }}
+                                className="flex items-center gap-2.5 px-4 py-3 rounded-xl transition-all duration-200"
+                                style={
+                                  opType === 'retrait'
+                                    ? {
+                                        background: 'rgba(139,92,246,0.1)',
+                                        border: '1.5px solid rgba(139,92,246,0.4)',
+                                        boxShadow: '0 0 0 3px rgba(139,92,246,0.4)',
+                                        color: '#c4b5fd',
+                                      }
+                                    : darkMode
+                                    ? {
+                                        background: 'rgba(255,255,255,0.04)',
+                                        border: '1.5px solid rgba(255,255,255,0.08)',
+                                        color: '#94a3b8',
+                                      }
+                                    : {
+                                        background: 'rgba(0,0,0,0.02)',
+                                        border: '1.5px solid rgba(0,0,0,0.08)',
+                                        color: '#6b7280',
+                                      }
+                                }
+                              >
+                                <div style={{ color: opType === 'retrait' ? '#c4b5fd' : (darkMode ? '#64748b' : '#4b5563') }}>
+                                  <ArrowDownCircle size={16} />
+                                </div>
+                                <span className="text-sm font-medium" style={{ color: opType === 'retrait' ? '#c4b5fd' : (darkMode ? '#94a3b8' : '#6b7280') }}>Retrait</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-col gap-1.5">
+                            <label className={`flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider ${
+                              darkMode ? 'text-slate-400' : 'text-gray-600'
+                            }`}>
+                              <span className={darkMode ? 'text-slate-500' : 'text-gray-500'}><TrendingDown size={14} /></span>
+                              Montant (MGA)
+                            </label>
+                            <div className="relative">
+                              <input
+                                type="number"
+                                min="0"
+                                value={editingClient.solde}
+                                onChange={(e) => { setEditingClient({ ...editingClient, solde: e.target.value }); setEditErrors({}); }}
+                                placeholder="Ex : 350 000"
+                                className={`w-full px-4 py-3 pr-16 rounded-xl text-sm focus:outline-none focus:ring-2 transition-all duration-200 ${
+                                  darkMode 
+                                    ? 'text-white placeholder-slate-500' 
+                                    : 'text-gray-800 placeholder-gray-500'
+                                }`}
+                                style={{
+                                  background: darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
+                                  border: `1px solid ${editErrors.montant ? 'rgba(239,68,68,0.5)' : (darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)')}`,
+                                }}
+                              />
+                              <span className={`absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold ${
+                                darkMode ? 'text-slate-400' : 'text-gray-500'
+                              }`}>MGA</span>
+                            </div>
+                            {editErrors.montant && (
+                              <div className={`flex items-center gap-1.5 mt-1.5 text-xs ${
+                                darkMode ? 'text-red-400' : 'text-red-600'
+                              }`}>
+                                <AlertCircle size={12} />{editErrors.montant}
+                              </div>
+                            )}
+                          </div>
+
+                          {montantNum > 0 && !editErrors.montant && (
+                            <div
+                              className="rounded-2xl p-4 flex items-center justify-between gap-4 transition-all duration-300"
+                              style={{
+                                background: darkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                                border: darkMode ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(0,0,0,0.06)'
+                              }}
+                            >
+                              <div>
+                                <p className={`text-xs mb-1 ${
+                                  darkMode ? 'text-slate-400' : 'text-gray-600'
+                                }`}>Impact de l'opération</p>
+                                <p className={`text-lg font-bold ${
+                                  isPositive ? (darkMode ? 'text-emerald-400' : 'text-emerald-600') : (darkMode ? 'text-orange-400' : 'text-orange-600')
+                                }`}>
+                                  {isPositive ? '+' : ''}{formatMGA(impact)}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <p className={`text-xs mb-1 ${
+                                  darkMode ? 'text-slate-400' : 'text-gray-600'
+                                }`}>Nouveau solde</p>
+                                <p className={`text-lg font-bold ${
+                                  darkMode ? 'text-blue-300' : 'text-blue-600'
+                                }`}>{formatMGA(newBalance)}</p>
+                              </div>
+                            </div>
+                          )}
+
+                          {showRecapInline && (
+                            <div
+                              className="rounded-2xl overflow-hidden"
+                              style={{ 
+                                border: '1px solid rgba(99,102,241,0.2)', 
+                                background: darkMode ? 'rgba(99,102,241,0.05)' : 'rgba(99,102,241,0.03)' 
+                              }}
+                            >
+                              <div
+                                className="px-4 py-3 flex items-center gap-2"
+                                style={{ 
+                                  background: darkMode ? 'rgba(99,102,241,0.1)' : 'rgba(99,102,241,0.08)', 
+                                  borderBottom: '1px solid rgba(99,102,241,0.15)' 
+                                }}
+                              >
+                                <ShieldCheck size={14} className={darkMode ? 'text-indigo-400' : 'text-indigo-600'} />
+                                <p className={`text-sm font-semibold ${
+                                  darkMode ? 'text-indigo-300' : 'text-indigo-700'
+                                }`}>Récapitulatif</p>
+                              </div>
+                              <div className="px-4 py-3 flex flex-col gap-2">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className={`text-xs ${
+                                    darkMode ? 'text-slate-400' : 'text-gray-600'
+                                  }`}>Client</span>
+                                  <span className="text-sm font-medium" style={{ 
+                                    color: darkMode ? '#e2e8f0' : '#1f2937' 
+                                  }}>{editingClient.nom}</span>
+                                </div>
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className={`text-xs ${
+                                    darkMode ? 'text-slate-400' : 'text-gray-600'
+                                  }`}>Type d'opération</span>
+                                  <span className="text-sm font-medium" style={{ 
+                                    color: darkMode ? '#818cf8' : '#4f46e5' 
+                                  }}>{opType === 'depot' ? 'Dépôt' : 'Retrait'}</span>
+                                </div>
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className={`text-xs ${
+                                    darkMode ? 'text-slate-400' : 'text-gray-600'
+                                  }`}>Montant</span>
+                                  <span className="text-sm font-medium" style={{ 
+                                    color: darkMode ? '#818cf8' : '#4f46e5' 
+                                  }}>{formatMGA(montantNum)}</span>
+                                </div>
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className={`text-xs ${
+                                    darkMode ? 'text-slate-400' : 'text-gray-600'
+                                  }`}>Solde actuel</span>
+                                  <span className="text-sm font-medium" style={{ 
+                                    color: darkMode ? '#e2e8f0' : '#1f2937' 
+                                  }}>{formatMGA(soldeActuel)}</span>
+                                </div>
+                                <div className={`h-px my-1 ${
+                                  darkMode ? 'bg-white/5' : 'bg-gray-200'
+                                }`} />
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className={`text-xs ${
+                                    darkMode ? 'text-slate-400' : 'text-gray-600'
+                                  }`}>Nouveau solde</span>
+                                  <span className="text-sm font-bold" style={{ 
+                                    color: darkMode ? '#34d399' : '#059669' 
+                                  }}>{formatMGA(newBalance)}</span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {needsConfirmStep && montantNum > 0 && !editErrors.montant && (
+                            <div
+                              className={`flex items-start gap-2.5 px-4 py-3 rounded-xl text-xs ${
+                                darkMode ? 'text-amber-300' : 'text-amber-700'
+                              }`}
+                              style={{ 
+                                background: darkMode ? 'rgba(251,191,36,0.07)' : 'rgba(251,191,36,0.04)', 
+                                border: '1px solid rgba(251,191,36,0.15)' 
+                              }}
+                            >
+                              <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
+                              <p>Cette opération dépasse 500 000 MGA. Vous serez invité à confirmer à l'étape suivante.</p>
+                            </div>
+                          )}
+
+                          <div className="flex gap-3 pt-1">
+                            <button
+                              type="button"
+                              onClick={handleCancelEdit}
+                              className={`flex-1 py-3 rounded-2xl text-sm font-medium transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] ${
+                                darkMode 
+                                  ? 'text-slate-400 hover:text-white hover:bg-white/5' 
+                                  : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100/50'
+                              }`}
+                              style={{ 
+                                border: darkMode 
+                                  ? '1px solid rgba(255,255,255,0.1)' 
+                                  : '1px solid rgba(0,0,0,0.08)' 
+                              }}
+                            >
+                              Annuler
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!validateEdit()) return;
+                                if (needsConfirmStep) setEditStep(2);
+                                else handleUpdateClient({ preventDefault: () => {} });
+                              }}
+                              className="flex-[2] py-3 rounded-2xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/25 hover:scale-[1.02] active:scale-[0.98]"
+                              style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 60%, #8b5cf6 100%)' }}
+                            >
+                              {needsConfirmStep && montantNum > 0
+                                ? <><span>Valider</span><ChevronRight size={16} /></>
+                                : <><CheckCircle2 size={16} /><span>Valider l'opération</span></>
+                              }
+                            </button>
+                          </div>
+
+                          <div className={`flex items-center justify-center gap-1.5 text-xs ${
+                            darkMode ? 'text-slate-500' : 'text-gray-500'
+                          }`}>
+                            <Lock size={10} />
+                            <span>Toutes les actions sont sécurisées et tracées.</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-6 flex flex-col gap-5 step-enter">
+                          <div className="flex items-center gap-3">
+                            <div
+                              className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
+                              style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}
+                            >
+                              <ShieldCheck size={18} className="text-white" />
+                            </div>
+                            <div>
+                              <h2 className={`font-bold text-lg leading-tight ${
+                                darkMode ? 'text-white' : 'text-gray-800'
+                              }`}>Récapitulatif de l'opération</h2>
+                              <p className={`text-xs mt-0.5 ${
+                                darkMode ? 'text-slate-400' : 'text-gray-600'
+                              }`}>Veuillez vérifier les informations avant de confirmer.</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1.5">
+                              <div
+                                className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
+                                style={{ background: 'rgba(99,102,241,0.2)', color: '#818cf8' }}
+                              >
+                                ✓
+                              </div>
+                              <span className={darkMode ? 'text-slate-500 text-xs' : 'text-gray-500 text-xs'}>Saisie</span>
+                            </div>
+                            <div className="flex-1 h-px" style={{ background: 'linear-gradient(90deg, #6366f1, #8b5cf6)' }} />
+                            <div className="flex items-center gap-1.5">
+                              <div
+                                className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white"
+                                style={{ background: 'linear-gradient(135deg,#6366f1,#8b5cf6)' }}
+                              >
+                                2
+                              </div>
+                              <span className={`text-xs font-medium ${
+                                darkMode ? 'text-white' : 'text-gray-800'
+                              }`}>Confirmation</span>
+                            </div>
+                          </div>
+
+                          <div className="h-px bg-white/5" />
+
+                          <div
+                            className="flex items-start gap-3 px-4 py-3.5 rounded-2xl"
+                            style={{ 
+                              background: darkMode ? 'rgba(251,191,36,0.07)' : 'rgba(251,191,36,0.04)', 
+                              border: '1px solid rgba(251,191,36,0.2)' 
+                            }}
+                          >
+                            <AlertCircle size={16} className={darkMode ? 'text-amber-400 flex-shrink-0 mt-0.5' : 'text-amber-600 flex-shrink-0 mt-0.5'} />
+                            <div>
+                              <p className={`text-sm font-semibold ${
+                                darkMode ? 'text-amber-300' : 'text-amber-700'
+                              }`}>Cette opération dépasse 500 000 MGA.</p>
+                              <p className={`text-xs mt-0.5 ${
+                                darkMode ? 'text-amber-400/70' : 'text-amber-600/70'
+                              }`}>Confirmez pour poursuivre.</p>
+                            </div>
+                          </div>
+
+                          <div
+                            className="rounded-2xl overflow-hidden"
+                            style={{ 
+                              background: darkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', 
+                              border: darkMode ? '1px solid rgba(255,255,255,0.07)' : '1px solid rgba(0,0,0,0.07)' 
+                            }}
+                          >
+                            <div className="px-4 py-3 flex flex-col gap-3">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className={`text-xs ${
+                                  darkMode ? 'text-slate-400' : 'text-gray-600'
+                                }`}>Client</span>
+                                <span className="text-sm font-medium" style={{ 
+                                  color: darkMode ? '#e2e8f0' : '#1f2937' 
+                                }}>{editingClient.nom}</span>
+                              </div>
+                              <div className="flex items-center justify-between gap-2">
+                                <span className={`text-xs ${
+                                  darkMode ? 'text-slate-400' : 'text-gray-600'
+                                }`}>Type d'opération</span>
+                                <span className="text-sm font-medium" style={{ 
+                                  color: darkMode ? '#818cf8' : '#4f46e5' 
+                                }}>{opType === 'depot' ? 'Dépôt' : 'Retrait'}</span>
+                              </div>
+                              <div className="flex items-center justify-between gap-2">
+                                <span className={`text-xs ${
+                                  darkMode ? 'text-slate-400' : 'text-gray-600'
+                                }`}>Montant</span>
+                                <span className="text-sm font-medium" style={{ 
+                                  color: darkMode ? '#818cf8' : '#4f46e5' 
+                                }}>{formatMGA(montantNum)}</span>
+                              </div>
+                              <div className={`h-px ${
+                                darkMode ? 'bg-white/5' : 'bg-gray-200'
+                              }`} />
+                              <div className="flex items-center justify-between gap-2">
+                                <span className={`text-xs ${
+                                  darkMode ? 'text-slate-400' : 'text-gray-600'
+                                }`}>Solde actuel</span>
+                                <span className="text-sm font-medium" style={{ 
+                                  color: darkMode ? '#e2e8f0' : '#1f2937' 
+                                }}>{formatMGA(soldeActuel)}</span>
+                              </div>
+                              <div className="flex items-center justify-between gap-2">
+                                <span className={`text-xs ${
+                                  darkMode ? 'text-slate-400' : 'text-gray-600'
+                                }`}>Nouveau solde</span>
+                                <span className="text-sm font-bold" style={{ 
+                                  color: darkMode ? '#34d399' : '#059669' 
+                                }}>{formatMGA(newBalance)}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex gap-3 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => setEditStep(1)}
+                              className={`flex-1 py-3 rounded-2xl text-sm font-medium flex items-center justify-center gap-1.5 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] ${
+                                darkMode 
+                                  ? 'text-slate-400 hover:text-white hover:bg-white/5' 
+                                  : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100/50'
+                              }`}
+                              style={{ 
+                                border: darkMode 
+                                  ? '1px solid rgba(255,255,255,0.1)' 
+                                  : '1px solid rgba(0,0,0,0.08)' 
+                              }}
+                            >
+                              <ChevronLeft size={15} /> Retour
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!validateEdit()) return;
+                                handleUpdateClient({ preventDefault: () => {} });
+                              }}
+                              className="flex-[2] py-3 rounded-2xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/25 hover:scale-[1.02] active:scale-[0.98]"
+                              style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}
+                            >
+                              <Lock size={15} /> Confirmer l'opération
+                            </button>
+                          </div>
+
+                          <div className={`flex items-center justify-center gap-1.5 text-xs ${
+                            darkMode ? 'text-slate-500' : 'text-gray-500'
+                          }`}>
+                            <Lock size={10} />
+                            <span>Toutes les actions sont sécurisées et tracées.</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Montant à ajouter</label>
-                    <input
-                      type="number"
-                      placeholder="Le montant à ajouter"
-                      onChange={(e) => setEditingClient({...editingClient, solde: parseFloat(e.target.value) || 0})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      required
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Ce montant sera ajouté au solde actuel</p>
-                  </div>
-                  <div className="flex space-x-3 pt-4">
-                    <button
-                      type="submit"
-                      className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-                    >
-                      Enregistrer
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleCancelEdit}
-                      className="flex-1 bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300"
-                    >
-                      Annuler
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
+
+                  <style>{`
+                    @keyframes modalIn {
+                      from { opacity: 0; transform: scale(0.92) translateY(20px); }
+                      to   { opacity: 1; transform: scale(1)    translateY(0); }
+                    }
+                    @keyframes overlayIn {
+                      from { opacity: 0; }
+                      to   { opacity: 1; }
+                    }
+                    @keyframes stepSlide {
+                      from { opacity: 0; transform: translateX(32px); }
+                      to   { opacity: 1; transform: translateX(0); }
+                    }
+                    .modal-enter  { animation: modalIn   0.35s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+                    .overlay-enter { animation: overlayIn 0.25s ease forwards; }
+                    .step-enter   { animation: stepSlide  0.3s cubic-bezier(0.34,1.2,0.64,1) forwards; }
+                    input[type=number]::-webkit-inner-spin-button,
+                    input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+                    input[type=number] { -moz-appearance: textfield; }
+                  `}</style>
+                </>
+              );
+            })()}
           </div>
         )}
       </div>

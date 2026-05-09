@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:3003';
+const API_BASE_URL = 'http://localhost:3002';
 
 class AuthService {
   // Stocker le token dans localStorage

@@ -1,0 +1,545 @@
+import { useState, useEffect, useCallback } from "react";
+import {
+  X,
+  User,
+  Wallet,
+  ArrowUpCircle,
+  ArrowDownCircle,
+  ChevronRight,
+  ChevronLeft,
+  CheckCircle2,
+  AlertCircle,
+  ShieldCheck,
+  Lock,
+  TrendingUp,
+  TrendingDown,
+} from "lucide-react";
+
+// ─── Utilitaires ─────────────────────────────────────────────────────────────
+const formatMGA = (n) =>
+  n == null ? "–" : `${Number(n).toLocaleString("fr-FR")} MGA`;
+
+// ─── Composant principal exporté ─────────────────────────────────────────────
+export default function App() {
+  const [open, setOpen] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
+
+  return (
+    <div
+      className="min-h-screen flex flex-col items-center justify-center gap-6 px-4"
+      style={{
+        background:
+          "radial-gradient(ellipse at 20% 50%, #0f172a 0%, #0a0f1e 60%, #050810 100%)",
+        fontFamily: "'DM Sans', 'Segoe UI', sans-serif",
+      }}
+    >
+      {/* Header décoratif */}
+      <div className="text-center mb-2">
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 mb-4">
+          <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+          <span className="text-blue-300 text-xs font-medium tracking-widest uppercase">
+            Espace Opérations
+          </span>
+        </div>
+        <h1 className="text-3xl font-bold text-white mb-1">
+          Gestion des clients
+        </h1>
+        <p className="text-slate-400 text-sm">
+          Effectuez des opérations sur les comptes clients
+        </p>
+      </div>
+
+      {/* Card clients fictifs */}
+      <div className="flex flex-wrap gap-3 justify-center">
+        {CLIENTS.map((c) => (
+          <div
+            key={c.id}
+            className="px-4 py-3 rounded-xl border border-white/10 bg-white/5 backdrop-blur-sm text-left min-w-[180px]"
+          >
+            <p className="text-xs text-slate-400 mb-0.5">{c.name}</p>
+            <p className="text-sm font-semibold text-emerald-400">
+              {formatMGA(c.balance)}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {/* Bouton d'ouverture */}
+      <button
+        onClick={() => { setOpen(true); setConfirmed(false); }}
+        className="group relative px-8 py-3.5 rounded-2xl font-semibold text-white text-sm tracking-wide overflow-hidden shadow-xl shadow-blue-500/20 transition-all duration-300 hover:shadow-blue-500/40 hover:scale-105"
+        style={{
+          background: "linear-gradient(135deg, #3b82f6 0%, #6366f1 50%, #8b5cf6 100%)",
+        }}
+      >
+        <span className="relative z-10 flex items-center gap-2">
+          <User size={16} />
+          Modifier le client
+        </span>
+        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+          style={{ background: "linear-gradient(135deg, #2563eb 0%, #4f46e5 50%, #7c3aed 100%)" }}
+        />
+      </button>
+
+      {/* Modal */}
+      {open && (
+        <ModalOperationClient
+          clients={CLIENTS}
+          onClose={() => setOpen(false)}
+          onConfirmed={() => { setConfirmed(true); setOpen(false); }}
+        />
+      )}
+
+      {/* Toast succès */}
+      {confirmed && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl bg-emerald-500 text-white shadow-2xl shadow-emerald-500/30 animate-bounce-in">
+          <CheckCircle2 size={18} />
+          <span className="font-medium text-sm">Opération confirmée avec succès !</span>
+          <button onClick={() => setConfirmed(false)} className="ml-2 opacity-70 hover:opacity-100">
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes modalIn {
+          from { opacity: 0; transform: scale(0.92) translateY(20px); }
+          to   { opacity: 1; transform: scale(1)    translateY(0); }
+        }
+        @keyframes overlayIn {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
+        @keyframes stepSlide {
+          from { opacity: 0; transform: translateX(32px); }
+          to   { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes bounceIn {
+          0%   { transform: translateX(-50%) translateY(40px); opacity: 0; }
+          70%  { transform: translateX(-50%) translateY(-6px); opacity: 1; }
+          100% { transform: translateX(-50%) translateY(0); opacity: 1; }
+        }
+        .modal-enter  { animation: modalIn   0.35s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+        .overlay-enter { animation: overlayIn 0.25s ease forwards; }
+        .step-enter   { animation: stepSlide  0.3s cubic-bezier(0.34,1.2,0.64,1) forwards; }
+        .animate-bounce-in { animation: bounceIn 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; }
+      `}</style>
+    </div>
+  );
+}
+
+// ─── Modal principal ──────────────────────────────────────────────────────────
+function ModalOperationClient({ clients, onClose, onConfirmed }) {
+  const [step, setStep] = useState(1); // 1 = formulaire, 2 = confirmation
+  const [clientId, setClientId] = useState(clients[0].id);
+  const [opType, setOpType] = useState("depot");
+  const [montant, setMontant] = useState("");
+  const [errors, setErrors] = useState({});
+
+  const client = clients.find((c) => c.id === clientId);
+  const montantNum = parseFloat(montant) || 0;
+  const impact = opType === "depot" ? montantNum : -montantNum;
+  const newBalance = client.balance + impact;
+  const showRecapInline = montantNum > 0 && montantNum <= 500000 && Object.keys(errors).length === 0;
+  const needsConfirmStep = montantNum > 500000;
+
+  // Fermeture ESC
+  const handleKey = useCallback((e) => {
+    if (e.key === "Escape") onClose();
+  }, [onClose]);
+  useEffect(() => {
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [handleKey]);
+
+  // Validation
+  const validate = () => {
+    const errs = {};
+    if (!montant || montantNum <= 0) errs.montant = "Le montant doit être supérieur à 0.";
+    if (opType === "retrait" && montantNum > client.balance)
+      errs.montant = `Solde insuffisant. Maximum : ${formatMGA(client.balance)}`;
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const handleValider = () => {
+    if (!validate()) return;
+    if (needsConfirmStep) setStep(2);
+    else { onConfirmed(); }
+  };
+
+  const handleConfirmer = () => { onConfirmed(); };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 overlay-enter"
+      style={{ background: "rgba(2,6,23,0.75)", backdropFilter: "blur(8px)" }}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div
+        className="modal-enter w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl relative flex flex-col max-h-[90vh]"
+        style={{
+          background: "linear-gradient(160deg, #0f172a 0%, #0d1424 100%)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          boxShadow: "0 0 0 1px rgba(99,102,241,0.15), 0 32px 80px rgba(0,0,0,0.6), 0 0 80px rgba(99,102,241,0.08)",
+        }}
+      >
+        {/* ── Bande déco top ── */}
+        <div
+          className="h-1 w-full flex-shrink-0"
+          style={{ background: "linear-gradient(90deg, #3b82f6, #6366f1, #8b5cf6, #ec4899)" }}
+        />
+
+        {/* ── Scroll container ── */}
+        <div className="overflow-y-auto flex-1 scrollbar-thin">
+          {step === 1 ? (
+            <StepForm
+              clients={clients}
+              clientId={clientId}
+              setClientId={(id) => { setClientId(id); setErrors({}); setMontant(""); }}
+              client={client}
+              opType={opType}
+              setOpType={(t) => { setOpType(t); setErrors({}); }}
+              montant={montant}
+              setMontant={(v) => { setMontant(v); setErrors({}); }}
+              montantNum={montantNum}
+              impact={impact}
+              newBalance={newBalance}
+              errors={errors}
+              showRecapInline={showRecapInline}
+              needsConfirmStep={needsConfirmStep}
+              onClose={onClose}
+              onValider={handleValider}
+            />
+          ) : (
+            <StepConfirmation
+              client={client}
+              opType={opType}
+              montantNum={montantNum}
+              impact={impact}
+              newBalance={newBalance}
+              onRetour={() => setStep(1)}
+              onConfirmer={handleConfirmer}
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Étape 1 : Formulaire ─────────────────────────────────────────────────────
+function StepForm({
+  clients, clientId, setClientId, client,
+  opType, setOpType,
+  montant, setMontant, montantNum, impact, newBalance,
+  errors, showRecapInline, needsConfirmStep,
+  onClose, onValider,
+}) {
+  const isPositive = impact >= 0;
+
+  return (
+    <div className="p-6 flex flex-col gap-5">
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
+            style={{ background: "linear-gradient(135deg, #3b82f6, #6366f1)" }}>
+            <User size={18} className="text-white" />
+          </div>
+          <div>
+            <h2 className="text-white font-bold text-lg leading-tight">Modifier le client</h2>
+            <p className="text-slate-400 text-xs mt-0.5">Effectuer une opération sur le compte du client.</p>
+          </div>
+        </div>
+        <button onClick={onClose}
+          className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-all duration-200 flex-shrink-0">
+          <X size={16} />
+        </button>
+      </div>
+
+      {/* Divider */}
+      <div className="h-px bg-white/5" />
+
+      {/* Sélection client */}
+      <Field icon={<User size={14} />} label="Client">
+        <select
+          value={clientId}
+          onChange={(e) => setClientId(Number(e.target.value))}
+          className="w-full px-4 py-3 rounded-xl text-white text-sm appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all duration-200"
+          style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+        >
+          {clients.map((c) => (
+            <option key={c.id} value={c.id} style={{ background: "#0f172a" }}>{c.name}</option>
+          ))}
+        </select>
+      </Field>
+
+      {/* Solde actuel */}
+      <Field icon={<Wallet size={14} />} label="Solde actuel">
+        <div className="w-full px-4 py-3 rounded-xl flex items-center justify-between"
+          style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.2)" }}>
+          <span className="text-emerald-400 font-bold text-lg">{formatMGA(client.balance)}</span>
+          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+        </div>
+      </Field>
+
+      {/* Type d'opération */}
+      <Field icon={<TrendingUp size={14} />} label="Type d'opération">
+        <div className="grid grid-cols-2 gap-3">
+          <RadioCard
+            id="depot" value="depot" current={opType} onChange={setOpType}
+            label="Dépôt" icon={<ArrowUpCircle size={16} />}
+            activeColor="blue"
+          />
+          <RadioCard
+            id="retrait" value="retrait" current={opType} onChange={setOpType}
+            label="Retrait" icon={<ArrowDownCircle size={16} />}
+            activeColor="violet"
+          />
+        </div>
+      </Field>
+
+      {/* Montant */}
+      <Field icon={<TrendingDown size={14} />} label="Montant (MGA)" error={errors.montant}>
+        <div className="relative">
+          <input
+            type="number"
+            min="0"
+            value={montant}
+            onChange={(e) => setMontant(e.target.value)}
+            placeholder="Ex : 350 000"
+            className="w-full px-4 py-3 pr-16 rounded-xl text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 transition-all duration-200"
+            style={{
+              background: "rgba(255,255,255,0.05)",
+              border: `1px solid ${errors.montant ? "rgba(239,68,68,0.5)" : "rgba(255,255,255,0.1)"}`,
+            }}
+          />
+          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">MGA</span>
+        </div>
+        {errors.montant && (
+          <div className="flex items-center gap-1.5 mt-1.5 text-red-400 text-xs">
+            <AlertCircle size={12} />{errors.montant}
+          </div>
+        )}
+      </Field>
+
+      {/* Impact dynamique */}
+      {montantNum > 0 && !errors.montant && (
+        <div className="rounded-2xl p-4 flex items-center justify-between gap-4 transition-all duration-300"
+          style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <div>
+            <p className="text-xs text-slate-400 mb-1">Impact de l'opération</p>
+            <p className={`text-lg font-bold ${isPositive ? "text-emerald-400" : "text-orange-400"}`}>
+              {isPositive ? "+" : ""}{formatMGA(impact)}
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-slate-400 mb-1">Nouveau solde</p>
+            <p className="text-lg font-bold text-blue-300">{formatMGA(newBalance)}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Récapitulatif inline (montant ≤ 500 000) */}
+      {showRecapInline && (
+        <div className="rounded-2xl overflow-hidden"
+          style={{ border: "1px solid rgba(99,102,241,0.2)", background: "rgba(99,102,241,0.05)" }}>
+          <div className="px-4 py-3 flex items-center gap-2"
+            style={{ background: "rgba(99,102,241,0.1)", borderBottom: "1px solid rgba(99,102,241,0.15)" }}>
+            <ShieldCheck size={14} className="text-indigo-400" />
+            <p className="text-sm font-semibold text-indigo-300">Récapitulatif</p>
+          </div>
+          <div className="px-4 py-3 flex flex-col gap-2">
+            <RecapRow label="Client" value={client.name} />
+            <RecapRow label="Type d'opération" value={opType === "depot" ? "Dépôt" : "Retrait"} accent="indigo" />
+            <RecapRow label="Montant" value={formatMGA(montantNum)} accent="indigo" />
+            <RecapRow label="Solde actuel" value={formatMGA(client.balance)} />
+            <div className="h-px bg-white/5 my-1" />
+            <RecapRow label="Nouveau solde" value={formatMGA(newBalance)} accent="emerald" bold />
+          </div>
+        </div>
+      )}
+
+      {/* Hint > 500 000 */}
+      {needsConfirmStep && montantNum > 0 && !errors.montant && (
+        <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl text-xs text-amber-300"
+          style={{ background: "rgba(251,191,36,0.07)", border: "1px solid rgba(251,191,36,0.15)" }}>
+          <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
+          <p>Cette opération dépasse 500 000 MGA. Vous serez invité à confirmer à l'étape suivante.</p>
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex gap-3 pt-1">
+        <button onClick={onClose}
+          className="flex-1 py-3 rounded-2xl text-sm font-medium text-slate-400 hover:text-white transition-all duration-200 hover:bg-white/5"
+          style={{ border: "1px solid rgba(255,255,255,0.1)" }}>
+          Annuler
+        </button>
+        <button onClick={onValider}
+          className="flex-[2] py-3 rounded-2xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/25 hover:scale-[1.02] active:scale-[0.98]"
+          style={{ background: "linear-gradient(135deg, #3b82f6 0%, #6366f1 60%, #8b5cf6 100%)" }}>
+          {needsConfirmStep && montantNum > 0
+            ? <><span>Valider</span><ChevronRight size={16} /></>
+            : <><CheckCircle2 size={16} /><span>Valider l'opération</span></>
+          }
+        </button>
+      </div>
+
+      {/* Pied sécurité */}
+      <div className="flex items-center justify-center gap-1.5 text-slate-500 text-xs">
+        <Lock size={10} />
+        <span>Toutes les actions sont sécurisées et tracées.</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Étape 2 : Confirmation ───────────────────────────────────────────────────
+function StepConfirmation({ client, opType, montantNum, impact, newBalance, onRetour, onConfirmer }) {
+  return (
+    <div className="p-6 flex flex-col gap-5 step-enter">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
+          style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}>
+          <ShieldCheck size={18} className="text-white" />
+        </div>
+        <div>
+          <h2 className="text-white font-bold text-lg leading-tight">Récapitulatif de l'opération</h2>
+          <p className="text-slate-400 text-xs mt-0.5">Veuillez vérifier les informations avant de confirmer.</p>
+        </div>
+      </div>
+
+      {/* Stepper */}
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
+            style={{ background: "rgba(99,102,241,0.2)", color: "#818cf8" }}>✓</div>
+          <span className="text-slate-500 text-xs">Saisie</span>
+        </div>
+        <div className="flex-1 h-px" style={{ background: "linear-gradient(90deg, #6366f1, #8b5cf6)" }} />
+        <div className="flex items-center gap-1.5">
+          <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white"
+            style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)" }}>2</div>
+          <span className="text-white text-xs font-medium">Confirmation</span>
+        </div>
+      </div>
+
+      <div className="h-px bg-white/5" />
+
+      {/* Alerte */}
+      <div className="flex items-start gap-3 px-4 py-3.5 rounded-2xl"
+        style={{ background: "rgba(251,191,36,0.07)", border: "1px solid rgba(251,191,36,0.2)" }}>
+        <AlertCircle size={16} className="text-amber-400 flex-shrink-0 mt-0.5" />
+        <div>
+          <p className="text-amber-300 text-sm font-semibold">Cette opération dépasse 500 000 MGA.</p>
+          <p className="text-amber-400/70 text-xs mt-0.5">Confirmez pour poursuivre.</p>
+        </div>
+      </div>
+
+      {/* Tableau récapitulatif */}
+      <div className="rounded-2xl overflow-hidden"
+        style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+        <div className="px-4 py-3 flex flex-col gap-3">
+          <RecapRow label="Client" value={client.name} />
+          <RecapRow label="Type d'opération" value={opType === "depot" ? "Dépôt" : "Retrait"} accent="indigo" />
+          <RecapRow label="Montant" value={formatMGA(montantNum)} accent="indigo" />
+          <div className="h-px bg-white/5" />
+          <RecapRow label="Solde actuel" value={formatMGA(client.balance)} />
+          <RecapRow label="Nouveau solde" value={formatMGA(newBalance)} accent="emerald" bold />
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="flex gap-3 pt-1">
+        <button onClick={onRetour}
+          className="flex-1 py-3 rounded-2xl text-sm font-medium text-slate-400 hover:text-white flex items-center justify-center gap-1.5 transition-all duration-200 hover:bg-white/5"
+          style={{ border: "1px solid rgba(255,255,255,0.1)" }}>
+          <ChevronLeft size={15} /> Retour
+        </button>
+        <button onClick={onConfirmer}
+          className="flex-[2] py-3 rounded-2xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/25 hover:scale-[1.02] active:scale-[0.98]"
+          style={{ background: "linear-gradient(135deg, #10b981 0%, #059669 100%)" }}>
+          <Lock size={15} /> Confirmer l'opération
+        </button>
+      </div>
+
+      <div className="flex items-center justify-center gap-1.5 text-slate-500 text-xs">
+        <Lock size={10} />
+        <span>Toutes les actions sont sécurisées et tracées.</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Composants utilitaires ───────────────────────────────────────────────────
+function Field({ icon, label, children, error }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="flex items-center gap-1.5 text-xs font-medium text-slate-400 uppercase tracking-wider">
+        <span className="text-slate-500">{icon}</span>
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+function RadioCard({ id, value, current, onChange, label, icon, activeColor }) {
+  const isActive = current === value;
+  const colors = {
+    blue:   { ring: "rgba(59,130,246,0.4)",  bg: "rgba(59,130,246,0.1)",  border: "rgba(59,130,246,0.4)",  text: "#93c5fd" },
+    violet: { ring: "rgba(139,92,246,0.4)",  bg: "rgba(139,92,246,0.1)", border: "rgba(139,92,246,0.4)", text: "#c4b5fd" },
+  };
+  const c = colors[activeColor];
+
+  return (
+    <label htmlFor={id} className="cursor-pointer">
+      <input id={id} type="radio" name="opType" value={value} checked={isActive}
+        onChange={() => onChange(value)} className="sr-only" />
+      <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl transition-all duration-200"
+        style={{
+          background: isActive ? c.bg : "rgba(255,255,255,0.04)",
+          border: `1.5px solid ${isActive ? c.border : "rgba(255,255,255,0.08)"}`,
+          boxShadow: isActive ? `0 0 0 3px ${c.ring}` : "none",
+        }}>
+        <div style={{ color: isActive ? c.text : "#64748b" }} className="transition-colors duration-200">
+          {icon}
+        </div>
+        <span className="text-sm font-medium transition-colors duration-200"
+          style={{ color: isActive ? c.text : "#94a3b8" }}>
+          {label}
+        </span>
+        <div className="ml-auto w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-200"
+          style={{
+            border: `2px solid ${isActive ? c.text : "rgba(255,255,255,0.2)"}`,
+            background: isActive ? c.text : "transparent",
+          }}>
+          {isActive && <div className="w-1.5 h-1.5 rounded-full bg-slate-900" />}
+        </div>
+      </div>
+    </label>
+  );
+}
+
+function RecapRow({ label, value, accent, bold }) {
+  const accentColors = {
+    indigo: "#818cf8",
+    emerald: "#34d399",
+  };
+  const color = accent ? accentColors[accent] : "#e2e8f0";
+
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-xs text-slate-400">{label}</span>
+      <span className={`text-sm ${bold ? "font-bold" : "font-medium"}`} style={{ color }}>
+        {value}
+      </span>
+    </div>
+  );
+}

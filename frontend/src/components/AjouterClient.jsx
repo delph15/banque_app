@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LogOut, Users, Plus, BarChart3, ArrowLeft, Home } from 'lucide-react';
+import { LogOut, Users, Plus, BarChart3, ArrowLeft, Home, CheckCircle2, Lock, Sun, Moon } from 'lucide-react';
 import api from '../services/api';
 
 const AjouterClient = ({ onNavigate, user, onLogout }) => {
@@ -11,6 +11,7 @@ const AjouterClient = ({ onNavigate, user, onLogout }) => {
   
   const [errors, setErrors] = useState({});
   const [showSuccess, setShowSuccess] = useState(false);
+  const [darkMode, setDarkMode] = useState(true);
   const [loading, setLoading] = useState(false);
 
   const validateForm = () => {
@@ -101,7 +102,7 @@ const AjouterClient = ({ onNavigate, user, onLogout }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-cyan-50 via-blue-50 to-violet-100">
       {/* Barre de navigation */}
       <nav className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -176,33 +177,122 @@ const AjouterClient = ({ onNavigate, user, onLogout }) => {
         </div>
 
         {/* Formulaire */}
-        <div className="bg-white shadow-sm border border-gray-200 rounded-lg p-6">
+        <div
+          className="w-full rounded-3xl overflow-hidden shadow-2xl relative"
+          style={{
+            background: darkMode
+              ? 'linear-gradient(160deg, #0f172a 0%, #0d1424 100%)'
+              : 'linear-gradient(160deg, #f8fafc 0%, #e2e8f0 100%)',
+            border: darkMode
+              ? '1px solid rgba(255,255,255,0.08)'
+              : '1px solid rgba(0,0,0,0.08)',
+            boxShadow: darkMode
+              ? '0 0 0 1px rgba(99,102,241,0.15), 0 32px 80px rgba(0,0,0,0.35), 0 0 80px rgba(99,102,241,0.08)'
+              : '0 0 0 1px rgba(99,102,241,0.1), 0 8px 32px rgba(0,0,0,0.12), 0 0 40px rgba(99,102,241,0.04)',
+            fontFamily: "'DM Sans', 'Segoe UI', sans-serif",
+          }}
+        >
+          <div
+            className="h-1 w-full"
+            style={{ background: 'linear-gradient(90deg, #3b82f6, #6366f1, #8b5cf6, #ec4899)' }}
+          />
+          <div className="p-6">
+            {/* Toggle mode */}
+            <div className="flex justify-end mb-4">
+              <button
+                type="button"
+                onClick={() => setDarkMode(!darkMode)}
+                className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 ${
+                  darkMode
+                    ? 'bg-white/10 hover:bg-white/20 text-white'
+                    : 'bg-gray-800/10 hover:bg-gray-800/20 text-gray-800'
+                }`}
+                style={{
+                  border: darkMode ? '1px solid rgba(255,255,255,0.15)' : '1px solid rgba(0,0,0,0.12)',
+                }}
+              >
+                {darkMode ? <Sun size={16} /> : <Moon size={16} />}
+              </button>
+            </div>
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Sexe */}
             <div>
-              <label htmlFor="sexe" className="block text-sm font-medium text-gray-700 mb-2">
-                Sexe
+              <label htmlFor="sexe" className={`flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider mb-2 ${
+                darkMode ? 'text-slate-400' : 'text-gray-600'
+              }`}>
+                Genre
               </label>
-              <select
-                id="sexe"
-                name="sexe"
-                value={formData.sexe}
-                onChange={handleInputChange}
-                className={`block w-full px-3 py-2 border rounded-lg shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
-                  errors.sexe ? 'border-red-300' : 'border-gray-300'
-                }`}
-              >
-                <option value="H">Homme</option>
-                <option value="F">Femme</option>
-              </select>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setFormData(prev => ({ ...prev, sexe: 'H' }))}
+                  className={`relative flex items-center justify-center h-11 rounded-xl transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] ${
+                    formData.sexe === 'H'
+                      ? 'text-white shadow-lg'
+                      : darkMode 
+                        ? 'text-white/70 hover:text-white' 
+                        : 'text-gray-600 hover:text-gray-800'
+                  }`}
+                  style={{
+                    background: formData.sexe === 'H'
+                      ? 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)'
+                      : darkMode 
+                        ? 'rgba(255,255,255,0.05)' 
+                        : 'rgba(0,0,0,0.02)',
+                    border: formData.sexe === 'H'
+                      ? 'none'
+                      : darkMode 
+                        ? '1px solid rgba(255,255,255,0.1)' 
+                        : '1px solid rgba(0,0,0,0.08)',
+                    boxShadow: formData.sexe === 'H'
+                      ? '0 0 0 1px rgba(99,102,241,0.15), 0 4px 12px rgba(99,102,241,0.2)'
+                      : 'none'
+                  }}
+                >
+                  <span className="text-sm font-medium">Masculin</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setFormData(prev => ({ ...prev, sexe: 'F' }))}
+                  className={`relative flex items-center justify-center h-11 rounded-xl transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] ${
+                    formData.sexe === 'F'
+                      ? 'text-white shadow-lg'
+                      : darkMode 
+                        ? 'text-white/70 hover:text-white' 
+                        : 'text-gray-600 hover:text-gray-800'
+                  }`}
+                  style={{
+                    background: formData.sexe === 'F'
+                      ? 'linear-gradient(135deg, #ec4899 0%, #a855f7 100%)'
+                      : darkMode 
+                        ? 'rgba(255,255,255,0.05)' 
+                        : 'rgba(0,0,0,0.02)',
+                    border: formData.sexe === 'F'
+                      ? 'none'
+                      : darkMode 
+                        ? '1px solid rgba(255,255,255,0.1)' 
+                        : '1px solid rgba(0,0,0,0.08)',
+                    boxShadow: formData.sexe === 'F'
+                      ? '0 0 0 1px rgba(236,72,153,0.15), 0 4px 12px rgba(236,72,153,0.2)'
+                      : 'none'
+                  }}
+                >
+                  <span className="text-sm font-medium">Féminin </span>
+                </button>
+              </div>
               {errors.sexe && (
-                <p className="mt-2 text-sm text-red-600">{errors.sexe}</p>
+                <div className="flex items-center gap-1.5 mt-1.5 text-red-400 text-xs">
+                  {errors.sexe}
+                </div>
               )}
             </div>
 
             {/* Nom complet */}
             <div>
-              <label htmlFor="nom" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="nom" className={`flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider mb-2 ${
+                darkMode ? 'text-slate-400' : 'text-gray-600'
+              }`}>
                 Nom Complet
               </label>
               <input
@@ -212,23 +302,39 @@ const AjouterClient = ({ onNavigate, user, onLogout }) => {
                 value={formData.nom}
                 onChange={handleInputChange}
                 placeholder="Ex: Jean Dupont"
-                className={`block w-full px-3 py-2 border rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
-                  errors.nom ? 'border-red-300' : 'border-gray-300'
+                className={`w-full px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all duration-200 ${
+                  errors.nom ? 'ring-2 ring-red-500/40' : ''
+                } ${
+                  darkMode 
+                    ? 'text-white placeholder-slate-500' 
+                    : 'text-gray-800 placeholder-gray-500'
                 }`}
+                style={{
+                  background: darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
+                  border: `1px solid ${errors.nom ? 'rgba(239,68,68,0.5)' : (darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)')}`
+                }}
               />
               {errors.nom && (
-                <p className="mt-2 text-sm text-red-600">{errors.nom}</p>
+                <div className={`flex items-center gap-1.5 mt-1.5 text-xs ${
+                  darkMode ? 'text-red-400' : 'text-red-600'
+                }`}>
+                  {errors.nom}
+                </div>
               )}
             </div>
 
             {/* Solde initial */}
             <div>
-              <label htmlFor="solde" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="solde" className={`flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider mb-2 ${
+                darkMode ? 'text-slate-400' : 'text-gray-600'
+              }`}>
                 Solde Initial
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <span className="text-gray-500 sm:text-sm">Ar</span>
+                  <span className={`text-xs font-semibold ${
+                    darkMode ? 'text-slate-400' : 'text-gray-500'
+                  }`}>MGA</span>
                 </div>
                 <input
                   type="text"
@@ -237,13 +343,25 @@ const AjouterClient = ({ onNavigate, user, onLogout }) => {
                   value={formData.solde}
                   onChange={handleInputChange}
                   placeholder="0.00"
-                  className={`block w-full pl-8 pr-3 py-2 border rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
-                    errors.solde ? 'border-red-300' : 'border-gray-300'
+                  className={`w-full pl-14 pr-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all duration-200 ${
+                    errors.solde ? 'ring-2 ring-red-500/40' : ''
+                  } ${
+                    darkMode 
+                      ? 'text-white placeholder-slate-500' 
+                      : 'text-gray-800 placeholder-gray-500'
                   }`}
+                  style={{
+                    background: darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
+                    border: `1px solid ${errors.solde ? 'rgba(239,68,68,0.5)' : (darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)')}`
+                  }}
                 />
               </div>
               {errors.solde && (
-                <p className="mt-2 text-sm text-red-600">{errors.solde}</p>
+                <div className={`flex items-center gap-1.5 mt-1.5 text-xs ${
+                  darkMode ? 'text-red-400' : 'text-red-600'
+                }`}>
+                  {errors.solde}
+                </div>
               )}
             </div>
 
@@ -252,7 +370,8 @@ const AjouterClient = ({ onNavigate, user, onLogout }) => {
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-[2] flex items-center justify-center px-4 py-3 rounded-2xl text-sm font-semibold text-white gap-2 transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/25 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 60%, #8b5cf6 100%)' }}
               >
                 {loading ? (
                   <>
@@ -261,21 +380,37 @@ const AjouterClient = ({ onNavigate, user, onLogout }) => {
                   </>
                 ) : (
                   <>
-                    <Plus className="w-5 h-5 mr-2" />
-                    Ajouter le Client
+                    <CheckCircle2 className="w-5 h-5" />
+                    Ajouter le client
                   </>
                 )}
               </button>
               <button
                 type="button"
                 onClick={handleCancel}
-                className="flex-1 flex items-center justify-center px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                className={`flex-1 flex items-center justify-center px-4 py-3 rounded-2xl text-sm font-medium transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] ${
+                  darkMode 
+                    ? 'text-slate-400 hover:text-white hover:bg-white/5' 
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100/50'
+                }`}
+                style={{ 
+                  border: darkMode 
+                    ? '1px solid rgba(255,255,255,0.1)' 
+                    : '1px solid rgba(0,0,0,0.08)' 
+                }}
               >
                 <ArrowLeft className="w-5 h-5 mr-2" />
                 Annuler
               </button>
             </div>
           </form>
+          <div className={`flex items-center justify-center gap-1.5 text-xs mt-5 ${
+            darkMode ? 'text-slate-500' : 'text-gray-500'
+          }`}>
+            <Lock size={10} />
+            <span>Les informations sont sécurisées et tracées.</span>
+          </div>
+          </div>
         </div>
 
         {/* Mention légale */}

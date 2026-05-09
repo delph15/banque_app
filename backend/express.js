@@ -158,12 +158,25 @@ app.get("/clients", authGerant, async (req,res) => {
 // UPDATE client
 // --------------------
 app.put("/client/:id", authGerant, async (req, res) => {
-  const { nom,  solde } = req.body; // solde ici = montant à ajouter
+  const { nom, solde, operation } = req.body; // solde ici = montant (ajout ou retrait)
   const id = req.params.id;
   
   console.log('PUT client - ID reçu:', id); // Debug
 
   try {
+    const montant = parseFloat(solde);
+    if (Number.isNaN(montant)) {
+      return res.status(400).json({ error: "Montant invalide" });
+    }
+    if (montant < 0) {
+      return res.status(400).json({ error: "Le montant doit être positif" });
+    }
+
+    const operationType = operation || "depot";
+    if (!["depot", "retrait"].includes(operationType)) {
+      return res.status(400).json({ error: "Opération invalide" });
+    }
+
     // Récupérer le solde actuel - accepter soit l'ID soit le numCompte
     const [clients] = await db.query(
       "SELECT solde FROM client WHERE (id=? OR numCompte=?) AND agence_id=?",
@@ -173,8 +186,14 @@ app.put("/client/:id", authGerant, async (req, res) => {
     
     if (clients.length === 0) return res.status(404).json({ error: "Client non trouvé" });
 
-    // Additionner le nouveau solde
-    const nouveauSolde = parseFloat(clients[0].solde) + parseFloat(solde);
+    const soldeActuel = parseFloat(clients[0].solde);
+    const nouveauSolde = operationType === "retrait"
+      ? soldeActuel - montant
+      : soldeActuel + montant;
+
+    if (nouveauSolde < 0) {
+      return res.status(400).json({ error: "Solde insuffisant" });
+    }
 
     // Mettre à jour le client
     await db.query(
